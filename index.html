@@ -3,45 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Street Companion: Last Order</title>
+    <title>Street Companion: 3:33 AM</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        
+        /* Интерфейс телефона */
         #ui-phone { 
-            position: absolute; bottom: 20px; right: 20px; width: 150px; height: 250px; 
-            background: rgba(20, 20, 20, 0.9); border: 3px solid #333; border-radius: 15px;
-            color: #0f0; padding: 10px; font-size: 10px; pointer-events: none; border-bottom: 10px solid #222;
+            position: absolute; top: 10px; right: 10px; width: 120px; height: 180px; 
+            background: rgba(10, 10, 10, 0.85); border: 2px solid #444; border-radius: 10px;
+            color: #0f0; padding: 8px; font-size: 9px; pointer-events: none; z-index: 10;
         }
-        #mode-display { color: #ff0000; font-weight: bold; font-size: 14px; margin-top: 10px; }
-        #controls { position: absolute; bottom: 20px; left: 20px; display: grid; gap: 10px; }
-        .btn { 
-            width: 80px; height: 50px; background: rgba(255,255,255,0.1); border: 1px solid #ff0000; 
-            color: white; border-radius: 5px; font-size: 10px; cursor: pointer;
+        #mode-display { color: #ff3333; font-weight: bold; margin-top: 5px; font-size: 11px; }
+
+        /* Джойстик */
+        #joystick-container {
+            position: absolute; bottom: 40px; left: 40px; width: 100px; height: 100px;
+            background: rgba(255, 255, 255, 0.1); border-radius: 50%; z-index: 10;
         }
-        .active-btn { background: rgba(255, 0, 0, 0.4); }
-        #scanner-alert { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: red; font-size: 24px; display: none; text-align: center;
+        #joystick-knob {
+            position: absolute; top: 30px; left: 30px; width: 40px; height: 40px;
+            background: rgba(255, 0, 0, 0.5); border-radius: 50%;
         }
-        canvas { display: block; }
+
+        /* Кнопки способностей */
+        #ability-bar {
+            position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10;
+        }
+        .btn {
+            width: 70px; height: 45px; background: rgba(0,0,0,0.6); border: 1px solid #ff0000;
+            color: white; font-size: 9px; border-radius: 5px;
+        }
+        .active-btn { background: #ff0000; color: black; box-shadow: 0 0 10px #ff0000; }
+
+        /* Эффект помех при страхе */
+        #glitch {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://media.giphy.com/media/oEI9uWUicGLeE/giphy.gif');
+            opacity: 0; pointer-events: none; mix-blend-mode: overlay; z-index: 5;
+        }
     </style>
 </head>
 <body>
 
-    <div id="scanner-alert">ОБНАРУЖЕН СБОЙ<br>[ШЕПТУН РЯДОМ]</div>
-
+    <div id="glitch"></div>
     <div id="ui-phone">
-        <div>3:33 AM</div>
-        <div style="color: #555;">GPS: СТАРЫЙ ПОРТ</div>
-        <hr>
-        <div id="status">МАРШРУТ: КВ. 13</div>
-        <div id="mode-display">РЕЖИМ: ТРОСТЬ</div>
-        <div id="battery">BATTERY: 100%</div>
+        <div>TIME: 03:33:01</div>
+        <div id="status">SCANNING...</div>
+        <div id="mode-display">MODE: STICK</div>
+        <div id="battery">PWR: 100%</div>
+        <div style="margin-top:10px; font-size:8px; color:#555">"ОНИ ТЯНУТСЯ К ТЕБЕ"</div>
     </div>
 
-    <div id="controls">
-        <button class="btn active-btn" id="btn1" onclick="setMode(1)">1. ТРОСТЬ</button>
-        <button class="btn" id="btn2" onclick="setMode(2)">2. КРЮК</button>
-        <button class="btn" id="btn3" onclick="setMode(3)">3. КОКОН</button>
+    <div id="joystick-container"><div id="joystick-knob"></div></div>
+
+    <div id="ability-bar">
+        <button class="btn active-btn" id="b1" onclick="setMode(1)">STICK</button>
+        <button class="btn" id="b2" onclick="setMode(2)">HOOK</button>
+        <button class="btn" id="b3" onclick="setMode(3)">COCOON</button>
     </div>
 
     <script type="importmap">
@@ -51,142 +69,147 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
-        let currentMode = 1; // 1: Stick, 2: Hook, 3: Cocoon
-        let battery = 100;
-        let isCocoonActive = false;
-
-        // --- СЦЕНА ---
+        // --- НАСТРОЙКИ ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x020202);
-        scene.fog = new THREE.FogExp2(0x000000, 0.08);
-
+        scene.fog = new THREE.FogExp2(0x000000, 0.12);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // --- ОКРУЖЕНИЕ (ДВОР-КОЛОДЕЦ) ---
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-        const wallGeo = new THREE.BoxGeometry(40, 50, 1);
-        
-        // Четыре стены двора
-        for(let i=0; i<4; i++) {
-            const wall = new THREE.Mesh(wallGeo, wallMat);
-            wall.position.y = 20;
-            if(i === 0) wall.position.z = -20;
-            if(i === 1) wall.position.z = 20;
-            if(i === 2) { wall.position.x = -20; wall.rotation.y = Math.PI/2; }
-            if(i === 3) { wall.position.x = 20; wall.rotation.y = Math.PI/2; }
-            scene.add(wall);
-        }
+        // --- УПРАВЛЕНИЕ ---
+        let moveData = { x: 0, y: 0 };
+        let lookData = { x: 0, y: 0 };
+        let yaw = 0, pitch = 0;
+        let currentMode = 1;
+        let battery = 100;
 
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x050505 }));
-        floor.rotation.x = -Math.PI/2;
-        floor.receiveShadow = true;
+        // Джойстик логика
+        const knob = document.getElementById('joystick-knob');
+        window.addEventListener('touchmove', (e) => {
+            for (let t of e.touches) {
+                if (t.clientX < window.innerWidth / 2) { // Левая часть - джойстик
+                    const rect = document.getElementById('joystick-container').getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    let dx = t.clientX - centerX;
+                    let dy = t.clientY - centerY;
+                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+                    const angle = Math.atan2(dy, dx);
+                    moveData.x = Math.cos(angle) * (dist / 40);
+                    moveData.y = Math.sin(angle) * (dist / 40);
+                    knob.style.transform = `translate(${moveData.x * 30}px, ${moveData.y * 30}px)`;
+                } else { // Правая часть - обзор
+                    if (lookData.lastX) {
+                        yaw -= (t.clientX - lookData.lastX) * 0.005;
+                        pitch -= (t.clientY - lookData.lastY) * 0.005;
+                        pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+                    }
+                    lookData.lastX = t.clientX;
+                    lookData.lastY = t.clientY;
+                }
+            }
+        });
+        window.addEventListener('touchend', () => { 
+            moveData = {x:0, y:0}; 
+            lookData = {lastX:null, lastY:null};
+            knob.style.transform = `translate(0,0)`;
+        });
+
+        // --- МИР ---
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x080808 }));
+        floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // --- ЗОНТ (ГЕОМЕТРИЯ) ---
-        const umbrellaGroup = new THREE.Group();
-        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.5), new THREE.MeshStandardMaterial({color: 0x222}));
-        stick.rotation.x = Math.PI/2;
-        umbrellaGroup.add(stick);
-
-        const domeGeo = new THREE.SphereGeometry(1.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const domeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, transparent: true, opacity: 0 });
-        const dome = new THREE.Mesh(domeGeo, domeMat);
-        umbrellaGroup.add(dome);
-
-        camera.add(umbrellaGroup);
-        umbrellaGroup.position.set(0.5, -0.5, -1);
-        scene.add(camera);
-
-        // --- ШЕПТУН (АНТАГОНИСТ) ---
-        const whisperer = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.2), new THREE.MeshStandardMaterial({color: 0x000}));
-        whisperer.add(body);
-        
-        // Длинные руки
-        for(let i=0; i<8; i++) {
-            const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 0.1), new THREE.MeshStandardMaterial({color: 0xffffff}));
-            hand.position.y = 1;
-            hand.rotation.z = (Math.random() - 0.5) * 3;
-            hand.rotation.x = (Math.random() - 0.5) * 3;
-            whisperer.add(hand);
+        // Стены колодца
+        const wallGeo = new THREE.BoxGeometry(50, 40, 1);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x050505 });
+        for(let i=0; i<4; i++) {
+            const w = new THREE.Mesh(wallGeo, wallMat);
+            w.position.y = 15;
+            if(i==0) w.position.z = -25;
+            if(i==1) w.position.z = 25;
+            if(i==2) { w.position.x = -25; w.rotation.y = Math.PI/2; }
+            if(i==3) { w.position.x = 25; w.rotation.y = Math.PI/2; }
+            scene.add(w);
         }
-        whisperer.position.set(10, 1, -15);
+
+        // --- ШЕПТУН (Улучшенный) ---
+        const whisperer = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 2), new THREE.MeshStandardMaterial({color: 0x000}));
+        whisperer.add(body);
+        const arms = [];
+        for(let i=0; i<12; i++) {
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 4, 0.05), new THREE.MeshStandardMaterial({color: 0xcccccc}));
+            arm.position.y = 1;
+            whisperer.add(arm);
+            arms.push(arm);
+        }
+        whisperer.position.set(0, 1, -20);
         scene.add(whisperer);
 
-        // --- СВЕТ ---
-        const flashlight = new THREE.SpotLight(0xffffff, 10, 30, Math.PI/6);
+        // --- ПРЕДМЕТЫ ---
+        const flashlight = new THREE.SpotLight(0xffffff, 20, 30, 0.4, 0.5);
         camera.add(flashlight);
-        flashlight.target = umbrellaGroup;
+        flashlight.position.set(0, 0, 0.1);
+        flashlight.target.position.set(0, 0, -1);
+        camera.add(flashlight.target);
+        scene.add(camera);
+
+        const amb = new THREE.AmbientLight(0xff0000, 0.05);
+        scene.add(amb);
 
         // --- ЛОГИКА ---
-        window.setMode = (mode) => {
-            currentMode = mode;
+        window.setMode = (m) => {
+            currentMode = m;
             document.querySelectorAll('.btn').forEach(b => b.classList.remove('active-btn'));
-            document.getElementById('btn'+mode).classList.add('active-btn');
-            
-            const display = document.getElementById('mode-display');
-            if(mode === 1) { display.innerText = "РЕЖИМ: ТРОСТЬ"; domeMat.opacity = 0; }
-            if(mode === 2) { display.innerText = "РЕЖИМ: КРЮК"; domeMat.opacity = 0; }
-            if(mode === 3) { display.innerText = "РЕЖИМ: КОКОН"; }
-        }
-
-        let moveForward = false;
-        window.addEventListener('touchstart', (e) => { 
-            if(e.touches[0].clientX < window.innerWidth/2) moveForward = true;
-            else if(currentMode === 3) isCocoonActive = true;
-        });
-        window.addEventListener('touchend', () => { moveForward = false; isCocoonActive = false; });
+            document.getElementById('b'+m).classList.add('active-btn');
+            document.getElementById('mode-display').innerText = "MODE: " + (m==1?"STICK":m==2?"HOOK":"COCOON");
+        };
 
         function animate() {
             requestAnimationFrame(animate);
 
+            // Вращение
+            camera.rotation.set(pitch, yaw, 0, 'YXZ');
+
             // Движение
-            if(moveForward && !isCocoonActive) camera.translateZ(-0.05);
+            const speed = (currentMode === 3) ? 0.01 : 0.1;
+            camera.translateZ(moveData.y * speed);
+            camera.translateX(moveData.x * speed);
+            camera.position.y = 1.6;
 
-            // Логика Кокона
-            if(isCocoonActive && battery > 0) {
-                domeMat.opacity = 0.6;
-                battery -= 0.5;
-                document.getElementById('battery').innerText = `BATTERY: ${Math.floor(battery)}%`;
-            } else {
-                domeMat.opacity = 0;
-            }
-
-            // Шептун медленно крадется
-            const dist = whisperer.position.distanceTo(camera.position);
+            // Анимация Шептуна
+            const dist = camera.position.distanceTo(whisperer.position);
+            const glitch = document.getElementById('glitch');
+            
             if(dist < 15) {
-                document.getElementById('scanner-alert').style.display = 'block';
-                if(!isCocoonActive) {
-                    const dir = new THREE.Vector3().subVectors(camera.position, whisperer.position).normalize();
-                    whisperer.position.x += dir.x * 0.03;
-                    whisperer.position.z += dir.z * 0.03;
-                }
-            } else {
-                document.getElementById('scanner-alert').style.display = 'none';
+                glitch.style.opacity = (15 - dist) / 30;
+                // Шептун идет к нам
+                const dir = new THREE.Vector3().subVectors(camera.position, whisperer.position).normalize();
+                whisperer.position.x += dir.x * 0.04;
+                whisperer.position.z += dir.z * 0.04;
+                
+                arms.forEach((a, i) => {
+                    a.rotation.z = Math.sin(Date.now() * 0.005 + i) * 1.5;
+                    a.rotation.x = Math.cos(Date.now() * 0.005 + i) * 0.5;
+                });
             }
 
-            // Проигрыш
-            if(dist < 2 && !isCocoonActive) {
-                alert("ШЕПТУН НАШЕЛ ТЕБЯ...");
+            // Кокон
+            if(currentMode === 3 && moveData.x === 0 && moveData.y === 0) {
+                battery -= 0.1;
+                document.getElementById('battery').innerText = "PWR: " + Math.max(0, Math.floor(battery)) + "%";
+            }
+
+            if(dist < 1.5 && currentMode !== 3) {
+                alert("ОН ТЕБЯ НАШЕЛ...");
                 location.reload();
             }
 
             renderer.render(scene, camera);
         }
-
-        camera.position.set(0, 1.6, 10);
         animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
