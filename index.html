@@ -3,213 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Street Companion: 3:33 AM</title>
+    <title>Street Companion: Maximum Edition</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; user-select: none; }
         
-        /* Интерфейс телефона */
-        #ui-phone { 
-            position: absolute; top: 10px; right: 10px; width: 120px; height: 180px; 
-            background: rgba(10, 10, 10, 0.85); border: 2px solid #444; border-radius: 10px;
-            color: #0f0; padding: 8px; font-size: 9px; pointer-events: none; z-index: 10;
+        /* Эффект старой камеры (шум) */
+        #noise {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://media.giphy.com/media/oEI9uWUicGLeE/giphy.gif');
+            opacity: 0.05; pointer-events: none; z-index: 20;
         }
-        #mode-display { color: #ff3333; font-weight: bold; margin-top: 5px; font-size: 11px; }
+
+        /* Телефон Компаньон */
+        #phone {
+            position: absolute; top: 15px; right: 15px; width: 130px; height: 210px;
+            background: #111; border: 3px solid #333; border-radius: 12px;
+            color: #0f0; padding: 10px; box-sizing: border-box; z-index: 50;
+            box-shadow: 0 0 20px rgba(0,255,0,0.1);
+        }
+        #radar {
+            width: 100%; height: 80px; background: #051105; border: 1px solid #0f0;
+            margin-top: 10px; position: relative; overflow: hidden;
+        }
+        #enemy-dot {
+            position: absolute; width: 6px; height: 6px; background: red;
+            border-radius: 50%; display: none; box-shadow: 0 0 5px red;
+        }
+        #battery-bar { height: 5px; background: #0f0; margin-top: 5px; transition: 0.3s; }
 
         /* Джойстик */
-        #joystick-container {
-            position: absolute; bottom: 40px; left: 40px; width: 100px; height: 100px;
-            background: rgba(255, 255, 255, 0.1); border-radius: 50%; z-index: 10;
+        #joy-base {
+            position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px;
+            background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 50%; z-index: 100;
         }
-        #joystick-knob {
-            position: absolute; top: 30px; left: 30px; width: 40px; height: 40px;
-            background: rgba(255, 0, 0, 0.5); border-radius: 50%;
+        #joy-stick {
+            position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
+            background: radial-gradient(circle, #ff3333, #880000);
+            border-radius: 50%; box-shadow: 0 0 15px rgba(255,0,0,0.5);
         }
 
         /* Кнопки способностей */
-        #ability-bar {
-            position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10;
+        #actions { position: absolute; bottom: 40px; right: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .ability {
+            width: 80px; height: 50px; background: rgba(0,0,0,0.8); border: 1px solid #ff0000;
+            color: #ff0000; border-radius: 8px; font-weight: bold; font-size: 10px;
         }
-        .btn {
-            width: 70px; height: 45px; background: rgba(0,0,0,0.6); border: 1px solid #ff0000;
-            color: white; font-size: 9px; border-radius: 5px;
-        }
-        .active-btn { background: #ff0000; color: black; box-shadow: 0 0 10px #ff0000; }
-
-        /* Эффект помех при страхе */
-        #glitch {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('https://media.giphy.com/media/oEI9uWUicGLeE/giphy.gif');
-            opacity: 0; pointer-events: none; mix-blend-mode: overlay; z-index: 5;
-        }
+        .active { background: #ff0000 !important; color: #000 !important; }
     </style>
 </head>
 <body>
 
-    <div id="glitch"></div>
-    <div id="ui-phone">
-        <div>TIME: 03:33:01</div>
-        <div id="status">SCANNING...</div>
-        <div id="mode-display">MODE: STICK</div>
-        <div id="battery">PWR: 100%</div>
-        <div style="margin-top:10px; font-size:8px; color:#555">"ОНИ ТЯНУТСЯ К ТЕБЕ"</div>
-    </div>
+<div id="noise"></div>
 
-    <div id="joystick-container"><div id="joystick-knob"></div></div>
+<div id="phone">
+    <div style="font-size: 10px;">3:33 AM</div>
+    <div id="radar"><div id="enemy-dot"></div></div>
+    <div id="mode-text" style="margin-top: 10px; font-size: 12px;">MODE: STICK</div>
+    <div style="font-size: 9px; margin-top: 10px;">BATTERY</div>
+    <div id="battery-bar"></div>
+    <div id="alert" style="color: red; font-size: 9px; margin-top: 10px; display: none;">WARNING: PROXIMITY</div>
+</div>
 
-    <div id="ability-bar">
-        <button class="btn active-btn" id="b1" onclick="setMode(1)">STICK</button>
-        <button class="btn" id="b2" onclick="setMode(2)">HOOK</button>
-        <button class="btn" id="b3" onclick="setMode(3)">COCOON</button>
-    </div>
+<div id="joy-base"><div id="joy-stick"></div></div>
 
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+<div id="actions">
+    <button class="ability active" id="m1" onclick="changeMode(1)">STICK</button>
+    <button class="ability" id="m2" onclick="changeMode(2)">HOOK</button>
+    <button class="ability" id="m3" onclick="changeMode(3)">COCOON</button>
+</div>
 
-    <script type="module">
-        import * as THREE from 'three';
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
 
-        // --- НАСТРОЙКИ ---
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x000000, 0.12);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+<script type="module">
+    import * as THREE from 'three';
 
-        // --- УПРАВЛЕНИЕ ---
-        let moveData = { x: 0, y: 0 };
-        let lookData = { x: 0, y: 0 };
-        let yaw = 0, pitch = 0;
-        let currentMode = 1;
-        let battery = 100;
+    // --- SETUP ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.1);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    document.body.appendChild(renderer.domElement);
 
-        // Джойстик логика
-        const knob = document.getElementById('joystick-knob');
-        window.addEventListener('touchmove', (e) => {
-            for (let t of e.touches) {
-                if (t.clientX < window.innerWidth / 2) { // Левая часть - джойстик
-                    const rect = document.getElementById('joystick-container').getBoundingClientRect();
-                    const centerX = rect.left + rect.width / 2;
-                    const centerY = rect.top + rect.height / 2;
-                    let dx = t.clientX - centerX;
-                    let dy = t.clientY - centerY;
-                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
-                    const angle = Math.atan2(dy, dx);
-                    moveData.x = Math.cos(angle) * (dist / 40);
-                    moveData.y = Math.sin(angle) * (dist / 40);
-                    knob.style.transform = `translate(${moveData.x * 30}px, ${moveData.y * 30}px)`;
-                } else { // Правая часть - обзор
-                    if (lookData.lastX) {
-                        yaw -= (t.clientX - lookData.lastX) * 0.005;
-                        pitch -= (t.clientY - lookData.lastY) * 0.005;
-                        pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
-                    }
-                    lookData.lastX = t.clientX;
-                    lookData.lastY = t.clientY;
+    // --- CONTROLS LOGIC ---
+    let joyPos = { x: 0, y: 0 };
+    let look = { yaw: 0, pitch: 0 };
+    let isTouchingJoy = false;
+    let battery = 100;
+    let mode = 1;
+
+    const stick = document.getElementById('joy-stick');
+    window.addEventListener('touchstart', (e) => {
+        for(let t of e.touches) {
+            if(t.clientX < 200 && t.clientY > window.innerHeight - 200) isTouchingJoy = true;
+        }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+        for(let t of e.touches) {
+            if(t.clientX < window.innerWidth/2) {
+                const rect = document.getElementById('joy-base').getBoundingClientRect();
+                const centerX = rect.left + 60, centerY = rect.top + 60;
+                let dx = t.clientX - centerX, dy = t.clientY - centerY;
+                const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
+                const angle = Math.atan2(dy, dx);
+                joyPos.x = Math.cos(angle) * (dist/50);
+                joyPos.y = Math.sin(angle) * (dist/50);
+                stick.style.transform = `translate(${joyPos.x*40}px, ${joyPos.y*40}px)`;
+            } else {
+                if(window.lastTouchX) {
+                    look.yaw -= (t.clientX - window.lastTouchX) * 0.006;
+                    look.pitch = Math.max(-1, Math.min(1, look.pitch - (t.clientY - window.lastTouchY) * 0.006));
                 }
+                window.lastTouchX = t.clientX; window.lastTouchY = t.clientY;
             }
-        });
-        window.addEventListener('touchend', () => { 
-            moveData = {x:0, y:0}; 
-            lookData = {lastX:null, lastY:null};
-            knob.style.transform = `translate(0,0)`;
-        });
+        }
+    });
 
-        // --- МИР ---
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x080808 }));
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
+    window.addEventListener('touchend', () => { 
+        joyPos = {x:0, y:0}; isTouchingJoy = false; 
+        window.lastTouchX = null; stick.style.transform = `translate(0,0)`;
+    });
 
-        // Стены колодца
-        const wallGeo = new THREE.BoxGeometry(50, 40, 1);
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x050505 });
-        for(let i=0; i<4; i++) {
-            const w = new THREE.Mesh(wallGeo, wallMat);
-            w.position.y = 15;
-            if(i==0) w.position.z = -25;
-            if(i==1) w.position.z = 25;
-            if(i==2) { w.position.x = -25; w.rotation.y = Math.PI/2; }
-            if(i==3) { w.position.x = 25; w.rotation.y = Math.PI/2; }
-            scene.add(w);
+    // --- WORLD ---
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color: 0x0a0a0a, roughness: 0.8}));
+    floor.rotation.x = -Math.PI/2;
+    scene.add(floor);
+
+    // Умный зонт
+    const umbrella = new THREE.Group();
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1), new THREE.MeshStandardMaterial({color: 0x111}));
+    handle.rotation.x = Math.PI/2;
+    umbrella.add(handle);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 8, 0, 6.3, 0, 1.5), new THREE.MeshStandardMaterial({color: 0x550000}));
+    top.position.z = -0.5; top.rotation.x = -Math.PI/2;
+    umbrella.add(top);
+    camera.add(umbrella);
+    umbrella.position.set(0.4, -0.4, -0.8);
+    scene.add(camera);
+
+    // Фонарик
+    const light = new THREE.SpotLight(0xffffff, 15, 30, 0.5);
+    light.position.set(0, 0, 0.2);
+    camera.add(light);
+    camera.add(light.target);
+    light.target.position.set(0,0,-1);
+
+    // Шептун
+    const whisperer = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 0.2), new THREE.MeshStandardMaterial({color:0x000}));
+    whisperer.add(b);
+    const hands = [];
+    for(let i=0; i<10; i++) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.05, 3.5, 0.05), new THREE.MeshStandardMaterial({color:0xeeeeee}));
+        h.position.y = 1; whisperer.add(h); hands.push(h);
+    }
+    whisperer.position.set(0, 1.25, -15);
+    scene.add(whisperer);
+
+    // --- MODES ---
+    window.changeMode = (m) => {
+        mode = m;
+        document.querySelectorAll('.ability').forEach(el => el.classList.remove('active'));
+        document.getElementById('m'+m).classList.add('active');
+        document.getElementById('mode-text').innerText = "MODE: " + (m==1?"STICK":m==2?"HOOK":"COCOON");
+        
+        // Визуальное изменение зонта
+        if(m==1) { handle.scale.y = 2.0; top.scale.set(0.2,0.2,0.2); }
+        if(m==2) { handle.scale.y = 1.0; top.scale.set(0.5,0.5,0.5); }
+        if(m==3) { handle.scale.y = 0.5; top.scale.set(3, 3, 3); top.material.opacity = 0.5; }
+        else { top.material.opacity = 1; }
+    };
+    changeMode(1);
+
+    // --- GAME LOOP ---
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // Управление обзором
+        camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
+
+        // Движение и покачивание (Bobbing)
+        if(joyPos.y !== 0 || joyPos.x !== 0) {
+            const s = (mode === 3 ? 0.02 : 0.08);
+            camera.translateZ(joyPos.y * s);
+            camera.translateX(joyPos.x * s);
+            camera.position.y = 1.6 + Math.sin(Date.now()*0.01)*0.03;
+            umbrella.position.y = -0.4 + Math.sin(Date.now()*0.01)*0.02;
         }
 
-        // --- ШЕПТУН (Улучшенный) ---
-        const whisperer = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 2), new THREE.MeshStandardMaterial({color: 0x000}));
-        whisperer.add(body);
-        const arms = [];
-        for(let i=0; i<12; i++) {
-            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 4, 0.05), new THREE.MeshStandardMaterial({color: 0xcccccc}));
-            arm.position.y = 1;
-            whisperer.add(arm);
-            arms.push(arm);
-        }
-        whisperer.position.set(0, 1, -20);
-        scene.add(whisperer);
+        // Логика Шептуна
+        const dist = camera.position.distanceTo(whisperer.position);
+        const dot = document.getElementById('enemy-dot');
+        const alertMsg = document.getElementById('alert');
 
-        // --- ПРЕДМЕТЫ ---
-        const flashlight = new THREE.SpotLight(0xffffff, 20, 30, 0.4, 0.5);
-        camera.add(flashlight);
-        flashlight.position.set(0, 0, 0.1);
-        flashlight.target.position.set(0, 0, -1);
-        camera.add(flashlight.target);
-        scene.add(camera);
+        if(dist < 20) {
+            dot.style.display = 'block';
+            alertMsg.style.display = 'block';
+            // Позиция на радаре
+            const relX = (whisperer.position.x - camera.position.x) * 2 + 65;
+            const relZ = (whisperer.position.z - camera.position.z) * 2 + 40;
+            dot.style.left = relX + 'px'; dot.style.top = relZ + 'px';
 
-        const amb = new THREE.AmbientLight(0xff0000, 0.05);
-        scene.add(amb);
-
-        // --- ЛОГИКА ---
-        window.setMode = (m) => {
-            currentMode = m;
-            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active-btn'));
-            document.getElementById('b'+m).classList.add('active-btn');
-            document.getElementById('mode-display').innerText = "MODE: " + (m==1?"STICK":m==2?"HOOK":"COCOON");
-        };
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // Вращение
-            camera.rotation.set(pitch, yaw, 0, 'YXZ');
-
-            // Движение
-            const speed = (currentMode === 3) ? 0.01 : 0.1;
-            camera.translateZ(moveData.y * speed);
-            camera.translateX(moveData.x * speed);
-            camera.position.y = 1.6;
-
-            // Анимация Шептуна
-            const dist = camera.position.distanceTo(whisperer.position);
-            const glitch = document.getElementById('glitch');
-            
-            if(dist < 15) {
-                glitch.style.opacity = (15 - dist) / 30;
-                // Шептун идет к нам
+            if(mode !== 3) {
                 const dir = new THREE.Vector3().subVectors(camera.position, whisperer.position).normalize();
-                whisperer.position.x += dir.x * 0.04;
-                whisperer.position.z += dir.z * 0.04;
-                
-                arms.forEach((a, i) => {
-                    a.rotation.z = Math.sin(Date.now() * 0.005 + i) * 1.5;
-                    a.rotation.x = Math.cos(Date.now() * 0.005 + i) * 0.5;
-                });
+                whisperer.position.x += dir.x * 0.035;
+                whisperer.position.z += dir.z * 0.035;
             }
-
-            // Кокон
-            if(currentMode === 3 && moveData.x === 0 && moveData.y === 0) {
-                battery -= 0.1;
-                document.getElementById('battery').innerText = "PWR: " + Math.max(0, Math.floor(battery)) + "%";
-            }
-
-            if(dist < 1.5 && currentMode !== 3) {
-                alert("ОН ТЕБЯ НАШЕЛ...");
-                location.reload();
-            }
-
-            renderer.render(scene, camera);
+            hands.forEach((h, i) => {
+                h.rotation.x = Math.sin(Date.now()*0.005 + i) * 0.5;
+                h.rotation.z = Math.cos(Date.now()*0.005 + i) * 1.5;
+            });
         }
-        animate();
-    </script>
+
+        // Расход батареи в режиме кокона
+        if(mode === 3) {
+            battery -= 0.15;
+            if(battery <= 0) changeMode(1);
+        } else if(battery < 100) {
+            battery += 0.05;
+        }
+        document.getElementById('battery-bar').style.width = battery + '%';
+        document.getElementById('battery-bar').style.background = battery < 20 ? 'red' : '#0f0';
+
+        // Смерть
+        if(dist < 1.6 && mode !== 3) {
+            document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:40vh;'>ШЕПТУН ЗАБРАЛ ТЕБЯ</h1>";
+            setTimeout(() => location.reload(), 2000);
+        }
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+
 </body>
 </html>
