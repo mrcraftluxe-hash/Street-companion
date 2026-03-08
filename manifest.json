@@ -1,0 +1,9 @@
+{
+  "name": "Street Companion",
+  "short_name": "Companion",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#ff0000",
+  "orientation": "landscape"
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Street Companion: Last Order</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        #ui-phone { 
+            position: absolute; bottom: 20px; right: 20px; width: 150px; height: 250px; 
+            background: rgba(20, 20, 20, 0.9); border: 3px solid #333; border-radius: 15px;
+            color: #0f0; padding: 10px; font-size: 10px; pointer-events: none; border-bottom: 10px solid #222;
+        }
+        #mode-display { color: #ff0000; font-weight: bold; font-size: 14px; margin-top: 10px; }
+        #controls { position: absolute; bottom: 20px; left: 20px; display: grid; gap: 10px; }
+        .btn { 
+            width: 80px; height: 50px; background: rgba(255,255,255,0.1); border: 1px solid #ff0000; 
+            color: white; border-radius: 5px; font-size: 10px; cursor: pointer;
+        }
+        .active-btn { background: rgba(255, 0, 0, 0.4); }
+        #scanner-alert { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: red; font-size: 24px; display: none; text-align: center;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="scanner-alert">ОБНАРУЖЕН СБОЙ<br>[ШЕПТУН РЯДОМ]</div>
+
+    <div id="ui-phone">
+        <div>3:33 AM</div>
+        <div style="color: #555;">GPS: СТАРЫЙ ПОРТ</div>
+        <hr>
+        <div id="status">МАРШРУТ: КВ. 13</div>
+        <div id="mode-display">РЕЖИМ: ТРОСТЬ</div>
+        <div id="battery">BATTERY: 100%</div>
+    </div>
+
+    <div id="controls">
+        <button class="btn active-btn" id="btn1" onclick="setMode(1)">1. ТРОСТЬ</button>
+        <button class="btn" id="btn2" onclick="setMode(2)">2. КРЮК</button>
+        <button class="btn" id="btn3" onclick="setMode(3)">3. КОКОН</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+        let currentMode = 1; // 1: Stick, 2: Hook, 3: Cocoon
+        let battery = 100;
+        let isCocoonActive = false;
+
+        // --- СЦЕНА ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020202);
+        scene.fog = new THREE.FogExp2(0x000000, 0.08);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // --- ОКРУЖЕНИЕ (ДВОР-КОЛОДЕЦ) ---
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        const wallGeo = new THREE.BoxGeometry(40, 50, 1);
+        
+        // Четыре стены двора
+        for(let i=0; i<4; i++) {
+            const wall = new THREE.Mesh(wallGeo, wallMat);
+            wall.position.y = 20;
+            if(i === 0) wall.position.z = -20;
+            if(i === 1) wall.position.z = 20;
+            if(i === 2) { wall.position.x = -20; wall.rotation.y = Math.PI/2; }
+            if(i === 3) { wall.position.x = 20; wall.rotation.y = Math.PI/2; }
+            scene.add(wall);
+        }
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x050505 }));
+        floor.rotation.x = -Math.PI/2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- ЗОНТ (ГЕОМЕТРИЯ) ---
+        const umbrellaGroup = new THREE.Group();
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.5), new THREE.MeshStandardMaterial({color: 0x222}));
+        stick.rotation.x = Math.PI/2;
+        umbrellaGroup.add(stick);
+
+        const domeGeo = new THREE.SphereGeometry(1.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const domeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, transparent: true, opacity: 0 });
+        const dome = new THREE.Mesh(domeGeo, domeMat);
+        umbrellaGroup.add(dome);
+
+        camera.add(umbrellaGroup);
+        umbrellaGroup.position.set(0.5, -0.5, -1);
+        scene.add(camera);
+
+        // --- ШЕПТУН (АНТАГОНИСТ) ---
+        const whisperer = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.2), new THREE.MeshStandardMaterial({color: 0x000}));
+        whisperer.add(body);
+        
+        // Длинные руки
+        for(let i=0; i<8; i++) {
+            const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 0.1), new THREE.MeshStandardMaterial({color: 0xffffff}));
+            hand.position.y = 1;
+            hand.rotation.z = (Math.random() - 0.5) * 3;
+            hand.rotation.x = (Math.random() - 0.5) * 3;
+            whisperer.add(hand);
+        }
+        whisperer.position.set(10, 1, -15);
+        scene.add(whisperer);
+
+        // --- СВЕТ ---
+        const flashlight = new THREE.SpotLight(0xffffff, 10, 30, Math.PI/6);
+        camera.add(flashlight);
+        flashlight.target = umbrellaGroup;
+
+        // --- ЛОГИКА ---
+        window.setMode = (mode) => {
+            currentMode = mode;
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active-btn'));
+            document.getElementById('btn'+mode).classList.add('active-btn');
+            
+            const display = document.getElementById('mode-display');
+            if(mode === 1) { display.innerText = "РЕЖИМ: ТРОСТЬ"; domeMat.opacity = 0; }
+            if(mode === 2) { display.innerText = "РЕЖИМ: КРЮК"; domeMat.opacity = 0; }
+            if(mode === 3) { display.innerText = "РЕЖИМ: КОКОН"; }
+        }
+
+        let moveForward = false;
+        window.addEventListener('touchstart', (e) => { 
+            if(e.touches[0].clientX < window.innerWidth/2) moveForward = true;
+            else if(currentMode === 3) isCocoonActive = true;
+        });
+        window.addEventListener('touchend', () => { moveForward = false; isCocoonActive = false; });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Движение
+            if(moveForward && !isCocoonActive) camera.translateZ(-0.05);
+
+            // Логика Кокона
+            if(isCocoonActive && battery > 0) {
+                domeMat.opacity = 0.6;
+                battery -= 0.5;
+                document.getElementById('battery').innerText = `BATTERY: ${Math.floor(battery)}%`;
+            } else {
+                domeMat.opacity = 0;
+            }
+
+            // Шептун медленно крадется
+            const dist = whisperer.position.distanceTo(camera.position);
+            if(dist < 15) {
+                document.getElementById('scanner-alert').style.display = 'block';
+                if(!isCocoonActive) {
+                    const dir = new THREE.Vector3().subVectors(camera.position, whisperer.position).normalize();
+                    whisperer.position.x += dir.x * 0.03;
+                    whisperer.position.z += dir.z * 0.03;
+                }
+            } else {
+                document.getElementById('scanner-alert').style.display = 'none';
+            }
+
+            // Проигрыш
+            if(dist < 2 && !isCocoonActive) {
+                alert("ШЕПТУН НАШЕЛ ТЕБЯ...");
+                location.reload();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        camera.position.set(0, 1.6, 10);
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
