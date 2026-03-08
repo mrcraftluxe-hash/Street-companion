@@ -3,249 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Street Companion: Maximum Edition</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Courier New', monospace; user-select: none; }
-        
-        /* Эффект старой камеры (шум) */
-        #noise {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('https://media.giphy.com/media/oEI9uWUicGLeE/giphy.gif');
-            opacity: 0.05; pointer-events: none; z-index: 20;
-        }
-
-        /* Телефон Компаньон */
-        #phone {
-            position: absolute; top: 15px; right: 15px; width: 130px; height: 210px;
-            background: #111; border: 3px solid #333; border-radius: 12px;
-            color: #0f0; padding: 10px; box-sizing: border-box; z-index: 50;
-            box-shadow: 0 0 20px rgba(0,255,0,0.1);
-        }
-        #radar {
-            width: 100%; height: 80px; background: #051105; border: 1px solid #0f0;
-            margin-top: 10px; position: relative; overflow: hidden;
-        }
-        #enemy-dot {
-            position: absolute; width: 6px; height: 6px; background: red;
-            border-radius: 50%; display: none; box-shadow: 0 0 5px red;
-        }
-        #battery-bar { height: 5px; background: #0f0; margin-top: 5px; transition: 0.3s; }
-
-        /* Джойстик */
-        #joy-base {
-            position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px;
-            background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
-            border-radius: 50%; z-index: 100;
-        }
-        #joy-stick {
-            position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
-            background: radial-gradient(circle, #ff3333, #880000);
-            border-radius: 50%; box-shadow: 0 0 15px rgba(255,0,0,0.5);
-        }
-
-        /* Кнопки способностей */
-        #actions { position: absolute; bottom: 40px; right: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .ability {
-            width: 80px; height: 50px; background: rgba(0,0,0,0.8); border: 1px solid #ff0000;
-            color: #ff0000; border-radius: 8px; font-weight: bold; font-size: 10px;
-        }
-        .active { background: #ff0000 !important; color: #000 !important; }
-    </style>
+    <title>Street Companion: 3:33 AM</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="noise"></div>
+    <div id="crosshair"></div>
 
-<div id="phone">
-    <div style="font-size: 10px;">3:33 AM</div>
-    <div id="radar"><div id="enemy-dot"></div></div>
-    <div id="mode-text" style="margin-top: 10px; font-size: 12px;">MODE: STICK</div>
-    <div style="font-size: 9px; margin-top: 10px;">BATTERY</div>
-    <div id="battery-bar"></div>
-    <div id="alert" style="color: red; font-size: 9px; margin-top: 10px; display: none;">WARNING: PROXIMITY</div>
-</div>
+    <div id="phone">
+        <div style="font-size: 10px;">3:33 AM</div>
+        <div id="radar"><div id="enemy-dot"></div></div>
+        <div id="mode-text" style="margin-top: 5px;">MODE: STICK</div>
+        <div id="battery-bar" style="height:4px; background: #0f0; margin-top:5px;"></div>
+    </div>
 
-<div id="joy-base"><div id="joy-stick"></div></div>
+    <div id="joy-base"><div id="joy-stick"></div></div>
 
-<div id="actions">
-    <button class="ability active" id="m1" onclick="changeMode(1)">STICK</button>
-    <button class="ability" id="m2" onclick="changeMode(2)">HOOK</button>
-    <button class="ability" id="m3" onclick="changeMode(3)">COCOON</button>
-</div>
+    <div id="actions">
+        <button class="ability active" id="m1">STICK</button>
+        <button class="ability" id="m2">HOOK</button>
+        <button class="ability" id="m3">COCOON</button>
+    </div>
 
-<script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-</script>
-
-<script type="module">
-    import * as THREE from 'three';
-
-    // --- SETUP ---
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000000, 0.1);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    document.body.appendChild(renderer.domElement);
-
-    // --- CONTROLS LOGIC ---
-    let joyPos = { x: 0, y: 0 };
-    let look = { yaw: 0, pitch: 0 };
-    let isTouchingJoy = false;
-    let battery = 100;
-    let mode = 1;
-
-    const stick = document.getElementById('joy-stick');
-    window.addEventListener('touchstart', (e) => {
-        for(let t of e.touches) {
-            if(t.clientX < 200 && t.clientY > window.innerHeight - 200) isTouchingJoy = true;
-        }
-    });
-
-    window.addEventListener('touchmove', (e) => {
-        for(let t of e.touches) {
-            if(t.clientX < window.innerWidth/2) {
-                const rect = document.getElementById('joy-base').getBoundingClientRect();
-                const centerX = rect.left + 60, centerY = rect.top + 60;
-                let dx = t.clientX - centerX, dy = t.clientY - centerY;
-                const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
-                const angle = Math.atan2(dy, dx);
-                joyPos.x = Math.cos(angle) * (dist/50);
-                joyPos.y = Math.sin(angle) * (dist/50);
-                stick.style.transform = `translate(${joyPos.x*40}px, ${joyPos.y*40}px)`;
-            } else {
-                if(window.lastTouchX) {
-                    look.yaw -= (t.clientX - window.lastTouchX) * 0.006;
-                    look.pitch = Math.max(-1, Math.min(1, look.pitch - (t.clientY - window.lastTouchY) * 0.006));
-                }
-                window.lastTouchX = t.clientX; window.lastTouchY = t.clientY;
-            }
-        }
-    });
-
-    window.addEventListener('touchend', () => { 
-        joyPos = {x:0, y:0}; isTouchingJoy = false; 
-        window.lastTouchX = null; stick.style.transform = `translate(0,0)`;
-    });
-
-    // --- WORLD ---
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color: 0x0a0a0a, roughness: 0.8}));
-    floor.rotation.x = -Math.PI/2;
-    scene.add(floor);
-
-    // Умный зонт
-    const umbrella = new THREE.Group();
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1), new THREE.MeshStandardMaterial({color: 0x111}));
-    handle.rotation.x = Math.PI/2;
-    umbrella.add(handle);
-    const top = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 8, 0, 6.3, 0, 1.5), new THREE.MeshStandardMaterial({color: 0x550000}));
-    top.position.z = -0.5; top.rotation.x = -Math.PI/2;
-    umbrella.add(top);
-    camera.add(umbrella);
-    umbrella.position.set(0.4, -0.4, -0.8);
-    scene.add(camera);
-
-    // Фонарик
-    const light = new THREE.SpotLight(0xffffff, 15, 30, 0.5);
-    light.position.set(0, 0, 0.2);
-    camera.add(light);
-    camera.add(light.target);
-    light.target.position.set(0,0,-1);
-
-    // Шептун
-    const whisperer = new THREE.Group();
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 0.2), new THREE.MeshStandardMaterial({color:0x000}));
-    whisperer.add(b);
-    const hands = [];
-    for(let i=0; i<10; i++) {
-        const h = new THREE.Mesh(new THREE.BoxGeometry(0.05, 3.5, 0.05), new THREE.MeshStandardMaterial({color:0xeeeeee}));
-        h.position.y = 1; whisperer.add(h); hands.push(h);
-    }
-    whisperer.position.set(0, 1.25, -15);
-    scene.add(whisperer);
-
-    // --- MODES ---
-    window.changeMode = (m) => {
-        mode = m;
-        document.querySelectorAll('.ability').forEach(el => el.classList.remove('active'));
-        document.getElementById('m'+m).classList.add('active');
-        document.getElementById('mode-text').innerText = "MODE: " + (m==1?"STICK":m==2?"HOOK":"COCOON");
-        
-        // Визуальное изменение зонта
-        if(m==1) { handle.scale.y = 2.0; top.scale.set(0.2,0.2,0.2); }
-        if(m==2) { handle.scale.y = 1.0; top.scale.set(0.5,0.5,0.5); }
-        if(m==3) { handle.scale.y = 0.5; top.scale.set(3, 3, 3); top.material.opacity = 0.5; }
-        else { top.material.opacity = 1; }
-    };
-    changeMode(1);
-
-    // --- GAME LOOP ---
-    function animate() {
-        requestAnimationFrame(animate);
-        
-        // Управление обзором
-        camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
-
-        // Движение и покачивание (Bobbing)
-        if(joyPos.y !== 0 || joyPos.x !== 0) {
-            const s = (mode === 3 ? 0.02 : 0.08);
-            camera.translateZ(joyPos.y * s);
-            camera.translateX(joyPos.x * s);
-            camera.position.y = 1.6 + Math.sin(Date.now()*0.01)*0.03;
-            umbrella.position.y = -0.4 + Math.sin(Date.now()*0.01)*0.02;
-        }
-
-        // Логика Шептуна
-        const dist = camera.position.distanceTo(whisperer.position);
-        const dot = document.getElementById('enemy-dot');
-        const alertMsg = document.getElementById('alert');
-
-        if(dist < 20) {
-            dot.style.display = 'block';
-            alertMsg.style.display = 'block';
-            // Позиция на радаре
-            const relX = (whisperer.position.x - camera.position.x) * 2 + 65;
-            const relZ = (whisperer.position.z - camera.position.z) * 2 + 40;
-            dot.style.left = relX + 'px'; dot.style.top = relZ + 'px';
-
-            if(mode !== 3) {
-                const dir = new THREE.Vector3().subVectors(camera.position, whisperer.position).normalize();
-                whisperer.position.x += dir.x * 0.035;
-                whisperer.position.z += dir.z * 0.035;
-            }
-            hands.forEach((h, i) => {
-                h.rotation.x = Math.sin(Date.now()*0.005 + i) * 0.5;
-                h.rotation.z = Math.cos(Date.now()*0.005 + i) * 1.5;
-            });
-        }
-
-        // Расход батареи в режиме кокона
-        if(mode === 3) {
-            battery -= 0.15;
-            if(battery <= 0) changeMode(1);
-        } else if(battery < 100) {
-            battery += 0.05;
-        }
-        document.getElementById('battery-bar').style.width = battery + '%';
-        document.getElementById('battery-bar').style.background = battery < 20 ? 'red' : '#0f0';
-
-        // Смерть
-        if(dist < 1.6 && mode !== 3) {
-            document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:40vh;'>ШЕПТУН ЗАБРАЛ ТЕБЯ</h1>";
-            setTimeout(() => location.reload(), 2000);
-        }
-
-        renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-</script>
-
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+    <script type="module" src="game.js"></script>
 </body>
 </html>
